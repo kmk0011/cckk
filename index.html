@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>가상 자동차 설계 & 미니 게임 시뮬레이터</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+    }
+    .page {
+      display: none;
+      padding: 20px;
+      text-align: center;
+    }
+    .active {
+      display: block;
+    }
+    button {
+      margin: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .car-preview {
+      margin: 20px auto;
+      width: 200px;
+      height: 100px;
+      position: relative;
+      background-color: gray;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .tire {
+      width: 40px;
+      height: 40px;
+      position: absolute;
+      bottom: -20px;
+    }
+    .tire.left {
+      left: 10px;
+    }
+    .tire.right {
+      right: 10px;
+    }
+    .decor {
+      width: 30px;
+      height: 30px;
+      position: absolute;
+      top: 0;
+      left: 85px;
+    }
+    .game-container {
+      position: relative;
+      width: 300px;
+      height: 500px;
+      margin: auto;
+      background: #222;
+      overflow: hidden;
+      border-radius: 10px;
+    }
+    .enemy, .player {
+      position: absolute;
+      width: 50px;
+      height: 80px;
+      border-radius: 10px;
+    }
+    .player {
+      background-color: blue;
+      bottom: 10px;
+    }
+    .score-board {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      color: white;
+      font-weight: bold;
+      text-align: right;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="page1" class="page active">
+    <h1>가상 자동차 설계 & 미니 게임 시뮬레이터</h1>
+    <button onclick="goToPage('page2')">플레이하기</button>
+  </div>
+
+  <div id="page2" class="page">
+    <h2>🚗 자동차 설계하기</h2>
+    <div class="car-preview" id="carPreview">
+      <img id="modelImage" src="images/model1.png" alt="모형" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;" onerror="this.src='images/default-model.png'">
+      <img class="tire left" id="tireLeft" src="images/tire1.png" alt="타이어 왼쪽" onerror="this.src='images/default-tire.png'">
+      <img class="tire right" id="tireRight" src="images/tire1.png" alt="타이어 오른쪽" onerror="this.src='images/default-tire.png'">
+      <img class="decor" id="decorImage" src="" style="display: none;" onerror="this.src='images/default-decor.png'">
+    </div>
+    <button onclick="showOption('tires')">타이어</button>
+    <button onclick="showOption('model')">모형</button>
+    <button onclick="showOption('decor')">장식 부품</button>
+    <button onclick="goToPage('page3')">게임 시작하기</button>
+  </div>
+
+  <div id="optionMenu" class="page">
+    <h2 id="optionTitle"></h2>
+    <div id="optionContent"></div>
+    <button onclick="goBackToDesign()">뒤로가기</button>
+  </div>
+
+  <div id="page3" class="page">
+    <h2>🎮 게임 중</h2>
+    <div class="game-container" id="gameArea">
+      <div class="score-board">
+        <div>시간: <span id="timer">0</span>s</div>
+        <div>점수: <span id="score">0</span></div>
+      </div>
+      <img class="player" id="playerCar" src="" style="left: 125px;" onerror="this.src='images/default-model.png'">
+    </div>
+  </div>
+
+  <div id="page4" class="page">
+    <h2>게임 종료!</h2>
+    <p>최종 점수: <span id="finalScore"></span></p>
+    <button onclick="goToPage('page2')">자동차 설계로 돌아가기</button>
+    <button onclick="goToPage('page3', true)">다시 시작하기</button>
+  </div>
+
+  <script>
+    let currentPage = 'page1';
+
+    // 기본 이미지 경로 설정 (images 폴더 안에 실제 이미지가 있어야 합니다)
+    let carConfig = {
+      tires: 'images/tire1.png',
+      model: 'images/model1.png',
+      decor: null
+    };
+
+    let timer = 0, score = 0, interval, gameRunning = false;
+
+    function goToPage(pageId, resetGame = false) {
+      document.getElementById(currentPage).classList.remove('active');
+      document.getElementById(pageId).classList.add('active');
+      currentPage = pageId;
+
+      if (pageId === 'page3') {
+        setupGame();
+        if (resetGame) startGame();
+      }
+    }
+
+    function showOption(type) {
+      document.getElementById(currentPage).classList.remove('active');
+      document.getElementById('optionMenu').classList.add('active');
+      currentPage = 'optionMenu';
+
+      const titleMap = {
+        tires: '타이어 선택',
+        model: '모형 선택',
+        decor: '장식 부품 선택'
+      };
+      document.getElementById('optionTitle').innerText = titleMap[type];
+
+      // 옵션 파일명만, images 폴더 내 이미지로 간주
+      const options = {
+        tires: ['tire1.png', 'tire2.png', 'tire3.png'],
+        model: ['model1.png', 'model2.png', 'model3.png'],
+        decor: ['decor1.png', 'decor2.png', '']  // ''는 장식 없음
+      };
+
+      const content = document.getElementById('optionContent');
+      content.innerHTML = '';
+      options[type].forEach(option => {
+        const btn = document.createElement('button');
+        btn.innerText = option || '장식 없음';
+        btn.onclick = () => {
+          const fullPath = option ? `images/${option}` : null;
+
+          if (type === 'tires') {
+            carConfig.tires = fullPath;
+            document.getElementById('tireLeft').src = fullPath || 'images/default-tire.png';
+            document.getElementById('tireRight').src = fullPath || 'images/default-tire.png';
+          } else if (type === 'model') {
+            carConfig.model = fullPath;
+            document.getElementById('modelImage').src = fullPath || 'images/default-model.png';
+          } else if (type === 'decor') {
+            carConfig.decor = fullPath;
+            const decorImg = document.getElementById('decorImage');
+            if (fullPath) {
+              decorImg.src = fullPath;
+              decorImg.style.display = 'block';
+            } else {
+              decorImg.style.display = 'none';
+            }
+          }
+        };
+        content.appendChild(btn);
+      });
+    }
+
+    function goBackToDesign() {
+      document.getElementById('optionMenu').classList.remove('active');
+      document.getElementById('page2').classList.add('active');
+      currentPage = 'page2';
+    }
+
+    function setupGame() {
+      const playerCar = document.getElementById('playerCar');
+      playerCar.src = carConfig.model || 'images/default-model.png';
+      playerCar.style.left = '125px';
+
+      // 게임 영역 초기화 (적 차, 점수판 유지)
+      const gameArea = document.getElementById('gameArea');
+      // 게임 시작 전 적 삭제
+      [...gameArea.querySelectorAll('.enemy')].forEach(enemy => enemy.remove());
+    }
+
+    function startGame() {
+      timer = 0;
+      score = 0;
+      gameRunning = true;
+      const player = document.getElementById('playerCar');
+      let x = 125;
+
+      document.getElementById('timer').innerText = timer;
+      document.getElementById('score').innerText = score;
+
+      const gameArea = document.getElementById('gameArea');
+      const enemies = [];
+
+      document.onkeydown = e => {
+        if (!gameRunning) return;
+        if (e.key === 'ArrowLeft') x -= 10;
+        if (e.key === 'ArrowRight') x += 10;
+        x = Math.max(0, Math.min(250, x));
+        player.style.left = x + 'px';
+      };
+
+      if (interval) clearInterval(interval);
+      interval = setInterval(() => {
+        if (!gameRunning) return;
+
+        // 타이머 및 점수 증가
+        timer++;
+        score++;
+        document.getElementById('timer').innerText = timer;
+        document.getElementById('score').innerText = score;
+
+        // 적 차량 생성 (최대 5개까지 유지)
+        if (enemies.length < 5) {
+          const enemy = document.createElement('div');
+          enemy.classList.add('enemy');
+          enemy.style.backgroundColor = 'red';
+          enemy.style.left = Math.floor(Math.random() * 250) + 'px';
+          enemy.style.top = '0px';
+          gameArea.appendChild(enemy);
+          enemies.push(enemy);
+        }
+
+        // 적 차량 이동 및 충돌 체크 (뒤에서 앞으로 순회)
+        for (let i = enemies.length - 1; i >= 0; i--) {
+          const en = enemies[i];
+          let top = parseInt(en.style.top);
+          top += 5;
+          en.style.top = top + 'px';
+
+          if (top > 420) {
+            en.remove();
+            enemies.splice(i, 1);
+            continue;
+          }
+
+          const playerTop = 410;
+          const playerLeft = parseInt(player.style.left);
+          const enemyLeft = parseInt(en.style.left);
+
+          // 충돌 판정 (간단한 사각형 충돌)
+          if (top >= playerTop && Math.abs(playerLeft - enemyLeft) < 50) {
+            gameOver();
+          }
+        }
+      }, 100);
+    }
+
+    function gameOver() {
+      gameRunning = false;
+      clearInterval(interval);
+      document.getElementById('finalScore').innerText = score;
+      goToPage('page4');
+    }
+  </script>
+</body>
+</html>
